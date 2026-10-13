@@ -46,6 +46,12 @@ resource "google_compute_instance" "this" {
     container_entrypoint = var.container_entrypoint
     container_args       = var.container_args
     data_uid             = var.data_uid
+    nginx_index = templatefile("${path.module}/nginx-index.html.tpl", {
+      title       = var.nginx_title
+      name        = var.name
+      zone        = var.zone
+      environment = var.environment
+    })
   })
 
   # Without a service account the VM has no credentials and cannot pull a

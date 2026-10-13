@@ -55,3 +55,9 @@ variable "spot" {
   type        = bool
   default     = true
 }
+
+variable "nginx_title" {
+  description = "Class 2: title of the nginx page (only used while servicio_patron_image is empty)."
+  type        = string
+  default     = "Probando nginx para servir un sitio web"
+}

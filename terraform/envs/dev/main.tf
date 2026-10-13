@@ -60,6 +60,7 @@ module "vm" {
   container_image = var.servicio_patron_image
   app_port        = local.app_port
   spot            = var.spot
+  nginx_title     = var.nginx_title
 }
 
 # GKE is optional in dev: classes 1-4 only need the VM. Toggle it on once

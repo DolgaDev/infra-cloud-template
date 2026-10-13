@@ -81,7 +81,20 @@ curl -s localhost | head -5
 
 ![nginx activo](img/clase-02/08-nginx-activo.png)
 
-**7.** Desde tu navegador: `http://<IP-externa>/`
+**7.** Cambiá la página por una propia. Seguís adentro de la VM (ventana SSH):
+
+```bash
+ZONE=$(curl -s -H Metadata-Flavor:Google http://metadata.google.internal/computeMetadata/v1/instance/zone | cut -d/ -f4)
+curl -fsSL https://raw.githubusercontent.com/dpetrocelli/infra-cloud-template/main/docs/clase-02/nginx-manual.html \
+  | sed -e "s/__HOST__/$(hostname)/g" -e "s/__ZONE__/$ZONE/g" \
+  | sudo tee /var/www/html/index.html >/dev/null
+curl -s localhost | grep -o '<h1>.*</h1>'
+```
+
+Esperado: `<h1>Probando nginx para servir un sitio web</h1>`. Es un HTML
+común: si querés, editalo con `sudo nano /var/www/html/index.html`.
+
+**8.** Desde tu navegador: `http://<IP-externa>/` (ojo: `http`, no `https`).
 
 ![nginx desde internet](img/clase-02/09-nginx-desde-internet.png)
 
@@ -97,10 +110,16 @@ gcloud compute ssh nginx-manual --zone=us-central1-a \
   --command='sudo apt-get update && sudo apt-get install -y nginx'
 ```
 
+Si el navegador no carga: (1) que la URL sea `http://` y no `https://`;
+(2) que la VM tenga el tag `http-server` (Compute Engine → la VM → Edit →
+Network tags); (3) que exista la regla `default-allow-http`
+(`gcloud compute firewall-rules list --filter=name=default-allow-http`).
+Si el botón **SSH** no conecta, mirá que exista `default-allow-ssh` (puerto 22).
+
 Preguntate: ¿cuántos clics y comandos fueron? ¿Quién se acuerda de ellos en un
 mes? ¿Cómo sabés que la VM de tu compañero quedó igual que la tuya?
 
-**8. Borrala** (cuesta plata mientras exista):
+**9. Borrala** (cuesta plata mientras exista):
 
 ```bash
 gcloud compute instances delete nginx-manual --zone=us-central1-a --quiet
@@ -130,7 +149,14 @@ curl "$(tofu output -raw vm_url)"               # esperá 1-2 min a que termine 
 ```
 
 En el plan buscá `provisioning_model = "SPOT"` y, en el `metadata_startup_script`,
-el `apt-get install -y nginx`: son tus clics y tu SSH, ahora como código.
+el `apt-get install -y nginx` y la página entera (`<h1>Probando nginx para servir
+un sitio web</h1>`): son tus clics, tu SSH y tu `index.html`, ahora como código.
+La página sale de `terraform/modules/vm/nginx-index.html.tpl`.
+
+**Cambiar la página es cambiar código.** Agregá a `dev.tfvars`
+`nginx_title = "Mi sitio, desplegado con OpenTofu"`, corré `tofu plan`
+(la VM se reemplaza: cambió su script de arranque; el disco de datos no) y
+`tofu apply`. Uno o dos minutos después, el `curl` muestra el título nuevo.
 
 **prod** usa los mismos módulos con otro estado y otros nombres. Por defecto
 prod no crea la VM (en la clase 8 solo necesita el cluster), así que para esta
