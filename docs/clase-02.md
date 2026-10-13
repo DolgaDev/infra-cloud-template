@@ -23,7 +23,7 @@ podés escribir `terraform`.
 - [ ] Estás en la raíz del repo.
 - [ ] Para la parte en la nube: gcloud logueado (`gcloud config get-value project`
       muestra tu proyecto). La imagen `app:v1` recién hace falta para el
-      servicio patrón (clase 3); el Paso 0 no la necesita.
+      servicio patrón (segunda parte de esta clase); el Paso 0 no la necesita.
 
 ## Paso 0: un servidor web, primero a mano y después con código
 
@@ -111,8 +111,8 @@ gcloud compute firewall-rules delete default-allow-http --quiet
 
 El módulo `vm` tiene dos modos. Si **no** le pasás imagen
 (`servicio_patron_image` vacío), el script de arranque hace lo que hiciste por
-SSH: instala nginx y lo deja en el puerto 80. Desde la clase 3 le pasás la
-imagen y corre el servicio patrón en Docker.
+SSH: instala nginx y lo deja en el puerto 80. Con la imagen (segunda parte de
+esta clase, Parte 2 del lab) corre el servicio patrón en Docker en el 8080.
 
 ```bash
 export PROJECT_ID="mi-proyecto-123"
@@ -149,6 +149,14 @@ curl "$(tofu output -raw vm_url)"
 Diferencias que vas a ver en el plan: prefijo `infra-cloud-prod`, VM
 **Standard** (no Spot: en prod no querés que GCP te la apague) y sin registry
 (ya lo creó dev).
+
+**Spot tiene un costo:** GCP puede apagar la VM cuando necesita la capacidad
+(en un ensayo pasó a los 12 minutos). La VM queda `TERMINATED`, sin IP, y
+`tofu output` muestra `vm_url = "http://:80/"`. Volvé a prenderla con
+`gcloud compute instances start infra-cloud-dev-vm --zone=us-central1-a` y
+`tofu refresh -var-file=dev.tfvars`. Si vas a mostrar algo en vivo o trabajar
+un rato largo, poné `spot = false` en `dev.tfvars` (el plan reemplaza la VM; el
+disco de datos queda).
 
 **Limpieza:** `tofu destroy` en cada carpeta, con los mismos `-var-file` y
 `-var` que usaste en el apply.
@@ -190,8 +198,8 @@ make tf-validate
 ```
 
 Esperado: `make tf-fmt` no imprime nada, y `make tf-validate` termina cada
-carpeta con `Success! The configuration is valid.` (son 7: `envs/dev`,
-`envs/prod`, `examples/nginx-vm` y los 4 módulos).
+carpeta con `Success! The configuration is valid.` (son 6: `envs/dev`,
+`envs/prod` y los 4 módulos).
 
 `init -backend=false` **solo** sirve para `validate`: no conecta el backend,
 así que un `plan` después de eso falla con `Backend initialization required`.
@@ -225,7 +233,7 @@ cd - && rm -r "$tmp"
 Esperado, al final: `Plan: 8 to add, 0 to change, 0 to destroy.` (red, subred,
 3 reglas de firewall, registry, disco y VM).
 
-## Pasos en GCP con el servicio patrón (desde la clase 3)
+## Pasos en GCP con el servicio patrón (segunda parte de la clase, Parte 2 del lab)
 
 > ### En la nube (dev)
 >
@@ -238,6 +246,21 @@ Esperado, al final: `Plan: 8 to add, 0 to change, 0 to destroy.` (red, subred,
 > gcloud services enable compute.googleapis.com artifactregistry.googleapis.com \
 >   storage.googleapis.com cloudbuild.googleapis.com
 > ```
+>
+> **Permisos de la cuenta de Compute (una sola vez por proyecto).** Cloud Build
+> compila con la cuenta de servicio por defecto de Compute Engine, y la VM usa
+> esa misma cuenta para bajar la imagen. En proyectos nuevos esa cuenta suele no
+> tener ningún rol: `gcloud builds submit` falla con `PERMISSION_DENIED` y la VM
+> no puede hacer `docker pull`. Dale lo justo:
+>
+> ```bash
+> SA="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')-compute@developer.gserviceaccount.com"
+> for ROLE in roles/cloudbuild.builds.builder roles/artifactregistry.reader roles/logging.logWriter; do
+>   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$SA" --role="$ROLE" --condition=None
+> done
+> ```
+>
+> Esperá uno o dos minutos a que se propague antes del `builds submit`.
 >
 > **1. Bucket del estado** (una sola vez por proyecto):
 >
@@ -253,8 +276,10 @@ Esperado, al final: `Plan: 8 to add, 0 to change, 0 to destroy.` (red, subred,
 > `dev.tfvars` están en `.gitignore`: no se suben.
 >
 > **2. Registry, imagen y VM.** La VM necesita que la imagen exista antes de
-> arrancar. Si todavía no hiciste la clase 3, creá primero el registry y subí la
-> imagen con Cloud Build:
+> arrancar. Si ya aplicaste el nginx del Paso 0, el registry existe: saltá el
+> `-target`, subí la imagen, descomentá `servicio_patron_image` en `dev.tfvars` y
+> el plan reemplaza la VM (el disco de datos queda). Si arrancás de cero, creá
+> primero el registry y subí la imagen con Cloud Build:
 >
 > ```bash
 > tofu apply -var-file=dev.tfvars -target=module.artifact_registry
@@ -292,11 +317,6 @@ Esperado, al final: `Plan: 8 to add, 0 to change, 0 to destroy.` (red, subred,
 > ```
 >
 > El bucket del estado queda (lo borrás a mano al final de la cursada).
->
-> Nota sobre la VM: corre con la cuenta de servicio por defecto de Compute
-> Engine. Si en tu proyecto esa cuenta no tiene permisos de lectura sobre
-> Artifact Registry, dásela:
-> `gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')-compute@developer.gserviceaccount.com" --role=roles/artifactregistry.reader`.
 
 ## Tu artefacto en la VM
 
@@ -359,4 +379,6 @@ make clean                                                      # borra los .ter
 | `Error 409: ... already exists` | El recurso ya existe (lo creaste a mano o desde otro entorno) | No lo dupliques: `enable_artifact_registry = false` en el segundo entorno, o `tofu import` |
 | `cd: no such file or directory` | Encadenaste `cd` relativos | Volvé a la raíz del repo y hacé `cd terraform/envs/dev` |
 | La VM no contesta en el 8080 | El script de arranque falló o la imagen no existe | `journalctl -u google-startup-scripts` (ver paso 3) |
-| `Unauthenticated` o `denied` al bajar la imagen en la VM | La cuenta de la VM no puede leer el registry | El binding `roles/artifactregistry.reader` de la nota de arriba |
+| `Unauthenticated` o `denied` al bajar la imagen en la VM | La cuenta de la VM no puede leer el registry | Los permisos de la cuenta de Compute (paso 0 de "Pasos en GCP"), y `gcloud compute instances reset infra-cloud-dev-vm --zone=us-central1-a` |
+| `PERMISSION_DENIED: The caller does not have permission` en `gcloud builds submit` | La cuenta de Compute, con la que compila Cloud Build, no tiene roles (o la API recién se habilitó) | Los permisos de la cuenta de Compute (paso 0 de "Pasos en GCP"); esperá 1-2 min y reintentá |
+| `vm_external_ip = ""` o `vm_url = "http://:80/"` | GCP desalojó la VM Spot (queda `TERMINATED`) | `gcloud compute instances start infra-cloud-dev-vm --zone=us-central1-a` y `tofu refresh -var-file=dev.tfvars`, o `spot = false` |
