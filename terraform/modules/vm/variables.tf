@@ -95,3 +95,9 @@ variable "spot" {
   type        = bool
   default     = false
 }
+
+variable "nginx_title" {
+  description = "Class 2, no container image: title of the page nginx serves. Changing it changes the startup script, so the plan replaces the VM (the data disk stays)."
+  type        = string
+  default     = "Probando nginx para servir un sitio web"
+}

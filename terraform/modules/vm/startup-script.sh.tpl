@@ -35,7 +35,11 @@ if ! command -v nginx >/dev/null 2>&1; then
   apt-get update
   apt-get install -y nginx
 fi
-echo "<h1>$(hostname): nginx creado con OpenTofu</h1>" > /var/www/html/index.html
+# The page comes from nginx-index.html.tpl, rendered by OpenTofu: change it
+# in code (var.nginx_title), never by hand on the VM.
+cat > /var/www/html/index.html <<'HTML'
+${nginx_index}
+HTML
 systemctl enable --now nginx
 %{ else ~}
 if ! command -v docker >/dev/null 2>&1; then
