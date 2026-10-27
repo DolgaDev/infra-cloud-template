@@ -37,3 +37,5 @@ contract CounterTest is Test {
         counter.setNumber(7);
     }
 }
+
+// Lab Clase 4: cambio para disparar el pipeline de contratos
