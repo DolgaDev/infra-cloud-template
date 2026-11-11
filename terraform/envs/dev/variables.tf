@@ -50,6 +50,12 @@ variable "enable_gke" {
   default     = false
 }
 
+variable "gke_machine_type" {
+  description = "Machine type of the GKE nodes. Class 6 (observability stack, ~3 GB RAM) needs e2-standard-2; go back to e2-small afterwards."
+  type        = string
+  default     = "e2-standard-2"
+}
+
 variable "spot" {
   description = "Run the VM as Spot (much cheaper, GCP may stop it). Default: on in dev."
   type        = bool
