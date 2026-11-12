@@ -86,8 +86,31 @@ def validate_chain(chain: list[Block]) -> tuple[bool, str]:
     Never trust a chain that arrived over the network. Think about: the
     genesis, the indexes, previous_hash links, recomputing every hash and the
     difficulty each block claims. Return (ok, reason).
+
+    Checks, in order (the first failure is the reason returned):
+      1. the chain is not empty and starts with OUR genesis;
+      2. every index is the previous one + 1;
+      3. every previous_hash points to the hash of the block before;
+      4. every stored hash is the real hash of the block (not tampered);
+      5. every hash meets the difficulty (the PoW was really done).
+    TODO(TF): when the difficulty becomes adjustable, check each block
+    against the difficulty that applied at its height, not the constant.
     """
-    raise NotImplementedError("TODO(TF): validate a received chain")
+    if not chain:
+        return False, "empty chain"
+    if chain[0].to_dict() != genesis().to_dict():
+        return False, "genesis does not match"
+    target = "0" * DIFFICULTY
+    for prev, block in zip(chain, chain[1:]):
+        if block.index != prev.index + 1:
+            return False, f"block {block.index}: expected index {prev.index + 1}"
+        if block.previous_hash != prev.hash:
+            return False, f"block {block.index}: previous_hash does not link to block {prev.index}"
+        if block.compute_hash() != block.hash:
+            return False, f"block {block.index}: hash does not match its content"
+        if not block.hash.startswith(target):
+            return False, f"block {block.index}: hash does not meet difficulty {DIFFICULTY}"
+    return True, "ok"
 
 
 def choose_best_chain(candidates: list[list[Block]]) -> list[Block] | None:
