@@ -36,7 +36,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from blockchain import Block, genesis, mine, new_block
+from blockchain import DIFFICULTY, Block, genesis, mine, new_block
 from fastapi import FastAPI
 from prometheus_client import CONTENT_TYPE_LATEST, Gauge, generate_latest
 from pydantic import BaseModel
@@ -118,7 +118,7 @@ def mine_block() -> dict[str, Any]:
     chain.append(block)
     save_chain(chain)
     BLOCK_HEIGHT.set(block.index)
-    return {"mined": block.to_dict()}
+    return {"mined": block.to_dict(), "difficulty": DIFFICULTY}
 
 
 if __name__ == "__main__":
